@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QMenu>
 #include <QMenuBar>
+#include <QProcess>
 
 namespace {
 QIcon icon(const QString& name) {
@@ -136,6 +137,14 @@ void MainWindow::buildActions() {
     m_actColor = new QAction(icon(QStringLiteral("color")), tr("Color"), this);
     connect(m_actColor, &QAction::triggered, this, &MainWindow::onPickColor);
 
+    // Settings actions
+    m_actSetTess   = new QAction(icon(QStringLiteral("settings")), tr("Tesseract Path..."), this);
+    m_actClearTess = new QAction(tr("Clear Tesseract Override"), this);
+    m_actTessInfo  = new QAction(tr("Tesseract Status..."), this);
+    connect(m_actSetTess,   &QAction::triggered, this, &MainWindow::onSetTesseractPath);
+    connect(m_actClearTess, &QAction::triggered, this, &MainWindow::onClearTesseractPath);
+    connect(m_actTessInfo,  &QAction::triggered, this, &MainWindow::onShowTesseractStatus);
+
     // Menus
     QMenu* mFile = menuBar()->addMenu(tr("&File"));
     mFile->addAction(m_actOpen);
@@ -149,6 +158,12 @@ void MainWindow::buildActions() {
 
     QMenu* mView = menuBar()->addMenu(tr("&View"));
     mView->addAction(m_actFit);
+
+    QMenu* mSettings = menuBar()->addMenu(tr("&Settings"));
+    mSettings->addAction(m_actSetTess);
+    mSettings->addAction(m_actClearTess);
+    mSettings->addSeparator();
+    mSettings->addAction(m_actTessInfo);
 
     QMenu* mHelp = menuBar()->addMenu(tr("&Help"));
     mHelp->addAction(tr("About"), [this]{
@@ -191,6 +206,7 @@ void MainWindow::buildToolBars() {
     tb->addSeparator();
 
     tb->addAction(m_actColor);
+    tb->addAction(m_actSetTess);
 
     // Width selector
     auto* lblW = new QLabel(QStringLiteral("  ") + tr("Width:"));
@@ -351,6 +367,125 @@ void MainWindow::onScaleChanged(double s) {
 
 void MainWindow::onStatusMsg(const QString& m) {
     statusBar()->showMessage(m, 4000);
+}
+
+void MainWindow::onSetTesseractPath() {
+    // Suggest the currently resolved path (if any) as starting location
+    QString current = OcrService::userTesseractPath();
+    if (current.isEmpty()) current = OcrService::findTesseract();
+
+    QString startDir;
+    if (!current.isEmpty()) {
+        startDir = QFileInfo(current).absolutePath();
+    } else {
+#ifdef Q_OS_WIN
+        startDir = QStringLiteral("C:/Program Files/Tesseract-OCR");
+        if (!QDir(startDir).exists()) startDir = QStringLiteral("C:/");
+#endif
+    }
+
+    QString path = QFileDialog::getOpenFileName(
+        this, tr("Select tesseract.exe"), startDir,
+#ifdef Q_OS_WIN
+        tr("Executable (tesseract.exe);;All files (*.*)")
+#else
+        tr("Executable (tesseract);;All files (*)")
+#endif
+    );
+    if (path.isEmpty()) return;
+
+    if (!QFileInfo(path).isExecutable() && !QFileInfo::exists(path)) {
+        QMessageBox::warning(this, tr("Invalid path"),
+                             tr("Not a valid executable: %1").arg(path));
+        return;
+    }
+
+    // Probe by running "<exe> --version"
+    QProcess proc;
+    proc.start(path, { QStringLiteral("--version") });
+    proc.waitForFinished(4000);
+    QString verOut = QString::fromLocal8Bit(proc.readAllStandardOutput())
+                     + QString::fromLocal8Bit(proc.readAllStandardError());
+    if (proc.exitStatus() != QProcess::NormalExit
+        || !verOut.contains(QStringLiteral("tesseract"), Qt::CaseInsensitive))
+    {
+        auto ret = QMessageBox::question(
+            this, tr("Cannot verify Tesseract"),
+            tr("Could not run '%1 --version' successfully.\n\nUse it anyway?")
+                .arg(path),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (ret != QMessageBox::Yes) return;
+    }
+
+    OcrService::setUserTesseractPath(path);
+    statusBar()->showMessage(
+        tr("Tesseract set: %1").arg(path), 5000);
+
+    QString ver = verOut.section(QChar('\n'), 0, 0).trimmed();
+    QMessageBox::information(this, tr("Tesseract configured"),
+        tr("<b>Saved.</b><br><br>Path: <code>%1</code><br>Version: %2")
+            .arg(path)
+            .arg(ver.isEmpty() ? tr("(unknown)") : ver));
+}
+
+void MainWindow::onClearTesseractPath() {
+    QString cur = OcrService::userTesseractPath();
+    if (cur.isEmpty()) {
+        QMessageBox::information(this, tr("Tesseract"),
+            tr("No user override is set."));
+        return;
+    }
+    auto ret = QMessageBox::question(this, tr("Clear override?"),
+        tr("Remove the saved Tesseract path?\n\nCurrent: %1").arg(cur),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (ret == QMessageBox::Yes) {
+        OcrService::setUserTesseractPath(QString());
+        statusBar()->showMessage(tr("Tesseract override cleared"), 4000);
+    }
+}
+
+void MainWindow::onShowTesseractStatus() {
+    const QString resolved = OcrService::findTesseract();
+    const QString source   = OcrService::tesseractSource();
+    const QString user     = OcrService::userTesseractPath();
+
+    QString version = tr("(not probed)");
+    if (!resolved.isEmpty()) {
+        QProcess proc;
+        proc.start(resolved, { QStringLiteral("--version") });
+        if (proc.waitForFinished(4000)) {
+            QString out = QString::fromLocal8Bit(proc.readAllStandardOutput())
+                        + QString::fromLocal8Bit(proc.readAllStandardError());
+            version = out.section(QChar('\n'), 0, 0).trimmed();
+            if (version.isEmpty()) version = tr("(unknown)");
+        }
+    }
+
+    QString html;
+    html += QStringLiteral("<h3>%1</h3>").arg(tr("Tesseract Status"));
+    if (resolved.isEmpty()) {
+        html += QStringLiteral("<p><b style='color:#c64'>%1</b></p>")
+                    .arg(tr("Tesseract not found."));
+    } else {
+        html += QStringLiteral("<p><b style='color:#4a8'>%1</b></p>")
+                    .arg(tr("Available."));
+        html += QStringLiteral("<p>%1 <code>%2</code></p>")
+                    .arg(tr("Path:")).arg(resolved);
+        html += QStringLiteral("<p>%1 %2</p>")
+                    .arg(tr("Source:")).arg(source);
+        html += QStringLiteral("<p>%1 %2</p>")
+                    .arg(tr("Version:")).arg(version);
+    }
+    if (!user.isEmpty()) {
+        html += QStringLiteral("<hr><p>%1 <code>%2</code></p>")
+                    .arg(tr("User override:")).arg(user);
+    }
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Tesseract Status"));
+    box.setTextFormat(Qt::RichText);
+    box.setText(html);
+    box.setIcon(resolved.isEmpty() ? QMessageBox::Warning : QMessageBox::Information);
+    box.exec();
 }
 
 void MainWindow::onOcrRegion(QRect r) {

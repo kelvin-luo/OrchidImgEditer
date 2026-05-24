@@ -23,7 +23,9 @@ ninja可执行文件：D:\win10\ninja.exe
 输出开发文档到独立的markdown文件中。
 
 fix:
+界面添加设置tesseract.exe的选项；
 
+添加程序图标；
 ```
 
 以下无效：

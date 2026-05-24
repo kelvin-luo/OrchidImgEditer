@@ -34,6 +34,9 @@ private slots:
     void onScaleChanged(double s);
     void onOcrRegion(QRect r);
     void onStatusMsg(const QString& m);
+    void onSetTesseractPath();
+    void onClearTesseractPath();
+    void onShowTesseractStatus();
 
 private:
     void buildActions();
@@ -66,6 +69,11 @@ private:
     QAction* m_actCrop   = nullptr;
 
     QAction* m_actColor  = nullptr;
+
+    // Settings actions
+    QAction* m_actSetTess   = nullptr;
+    QAction* m_actClearTess = nullptr;
+    QAction* m_actTessInfo  = nullptr;
 
     // Toolbar widgets
     QSpinBox* m_spinWidth  = nullptr;

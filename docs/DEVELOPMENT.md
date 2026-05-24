@@ -162,11 +162,17 @@ kImgEdit.exe --version
 
 1. 安装 [UB-Mannheim Tesseract 5.x](https://github.com/UB-Mannheim/tesseract/wiki)。
 2. 安装时勾选 “Additional language data → Chinese (Simplified)”；或事后把 `chi_sim.traineddata` 拷到 `tessdata` 目录。
-3. 确保 `tesseract.exe` 在 PATH 中。否则设置：
-   ```powershell
-   setx KIMG_TESSERACT "C:\Program Files\Tesseract-OCR\tesseract.exe"
-   ```
-4. 在 kImgEdit 中点 **OCR** 工具，按住左键拖一个矩形，松开后弹出识别结果对话框（可一键复制）。
+3. **在 kImgEdit 中通过界面配置（推荐）：**
+   - 菜单 **Settings → Tesseract Path...** （或工具栏齿轮按钮）选择 `tesseract.exe`；程序会先尝试 `tesseract --version` 验证并保存到 `QSettings`（Windows 注册表 `HKCU\Software\kelvin\kImgEdit\ocr\tesseract`）。
+   - **Settings → Tesseract Status...** 可查看当前解析到的路径、来源、版本号。
+   - **Settings → Clear Tesseract Override** 移除用户设置，恢复自动探测。
+4. 自动探测顺序（`OcrService::findTesseract`）：
+   1. 用户在界面里设置并保存的路径（`QSettings: ocr/tesseract`）
+   2. 环境变量 `KIMG_TESSERACT`
+   3. 系统 `PATH` 中的 `tesseract.exe`
+   4. 常见安装目录：`C:\Program Files\Tesseract-OCR\tesseract.exe` 等
+5. 找不到时，OCR 不会崩溃，只会弹窗给出上述安装/配置指引。
+6. 实际使用：选 **OCR** 工具，左键拖一个矩形，松开后弹出识别结果对话框，可一键复制。
 
 ---
 

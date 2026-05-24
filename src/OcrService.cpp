@@ -13,18 +13,38 @@
 
 OcrService::OcrService(QObject* parent) : QObject(parent) {}
 
+QString OcrService::userTesseractPath() {
+    QSettings s;
+    return s.value(QStringLiteral("ocr/tesseract")).toString();
+}
+
+void OcrService::setUserTesseractPath(const QString& abs) {
+    QSettings s;
+    if (abs.isEmpty()) {
+        s.remove(QStringLiteral("ocr/tesseract"));
+    } else {
+        s.setValue(QStringLiteral("ocr/tesseract"), abs);
+    }
+    s.sync();
+}
+
 QString OcrService::findTesseract() {
-    // 1. Environment override
+    // 1. User setting (QSettings)
+    const QString user = userTesseractPath();
+    if (!user.isEmpty() && QFileInfo::exists(user)) return user;
+
+    // 2. Environment override
     const QByteArray env = qgetenv("KIMG_TESSERACT");
     if (!env.isEmpty()) {
         QString p = QString::fromLocal8Bit(env);
         if (QFileInfo::exists(p)) return p;
     }
-    // 2. PATH lookup
+
+    // 3. PATH lookup
     QString hit = QStandardPaths::findExecutable(QStringLiteral("tesseract"));
     if (!hit.isEmpty()) return hit;
 
-    // 3. Common install locations on Windows
+    // 4. Common install locations on Windows
     static const QStringList candidates = {
         QStringLiteral("C:/Program Files/Tesseract-OCR/tesseract.exe"),
         QStringLiteral("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
@@ -32,6 +52,29 @@ QString OcrService::findTesseract() {
     };
     for (const QString& c : candidates) {
         if (QFileInfo::exists(c)) return c;
+    }
+    return {};
+}
+
+QString OcrService::tesseractSource() {
+    const QString user = userTesseractPath();
+    if (!user.isEmpty() && QFileInfo::exists(user))
+        return QStringLiteral("user-setting");
+
+    const QByteArray env = qgetenv("KIMG_TESSERACT");
+    if (!env.isEmpty() && QFileInfo::exists(QString::fromLocal8Bit(env)))
+        return QStringLiteral("env");
+
+    if (!QStandardPaths::findExecutable(QStringLiteral("tesseract")).isEmpty())
+        return QStringLiteral("PATH");
+
+    static const QStringList candidates = {
+        QStringLiteral("C:/Program Files/Tesseract-OCR/tesseract.exe"),
+        QStringLiteral("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
+        QStringLiteral("D:/Program Files/Tesseract-OCR/tesseract.exe"),
+    };
+    for (const QString& c : candidates) {
+        if (QFileInfo::exists(c)) return QStringLiteral("preset");
     }
     return {};
 }
@@ -48,10 +91,10 @@ OcrService::Result OcrService::recognize(const QImage& img, const QString& langs
         r.error = tr(
             "Tesseract OCR engine not found.\n\n"
             "To enable OCR:\n"
-            "  1. Install Tesseract (https://github.com/UB-Mannheim/tesseract/wiki)\n"
-            "  2. Make sure 'tesseract.exe' is on PATH, or set the\n"
-            "     environment variable KIMG_TESSERACT to its absolute path.\n"
-            "  3. (Optional) Install Chinese data: chi_sim.traineddata\n"
+            "  - Menu \"Settings -> Tesseract Path...\" to point at tesseract.exe, or\n"
+            "  - Install Tesseract (https://github.com/UB-Mannheim/tesseract/wiki),\n"
+            "    add it to PATH, or set environment variable KIMG_TESSERACT.\n"
+            "  - (Optional) Install Chinese data: chi_sim.traineddata\n"
         );
         return r;
     }
