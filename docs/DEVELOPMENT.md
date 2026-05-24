@@ -86,7 +86,11 @@ p206_kImgEdit/
 
 - 工具栏图标：手写 SVG（位于 `resources/icons/`），统一线性灰 `#dde3ea`，重要色（黄、蓝、绿）做点缀。
 - 整体样式表：自定义暗色 QSS（见 `MainWindow::applyStyle()`），并启用 Fusion 风格。
-- 应用图标：`resources/icons/app.svg` 作为 `QApplication::setWindowIcon`，可选放置 `resources/icons/app.ico` 让 EXE 在 Windows 任务栏显示自定义图标（CMake 自动嵌入）。
+- 应用图标：`resources/icons/app.ico`（7 档尺寸，已嵌入 EXE）+ `app.svg` 备用；运行时 `QApplication::setWindowIcon` 优先加载 ICO。若需重新生成 ICO：
+  ```powershell
+  python tools/gen_app_icon.py   # 需要 Pillow: python -m pip install pillow
+  .\build.ps1 -Clean
+  ```
 
 ---
 

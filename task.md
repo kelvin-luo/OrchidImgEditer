@@ -52,5 +52,11 @@ halcon根目录是："D:\Program Files\MVTec\HALCON-17.12-Progress"
 #### compile:
 
 ```shell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 在 PowerShell 中（不需要事先开 vcvars，脚本自动处理）
+cd D:\k8\260515kelvin\p206_kImgEdit
+.\build.ps1            # 编译 Release
+.\run.ps1              # 运行（默认打开 D:\media\xi_an_hot\w700d1q75.jpg）
 
 ```

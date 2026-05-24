@@ -36,7 +36,9 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle(QStringLiteral("kImgEdit"));
-    setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
+    setWindowIcon(QIcon(QStringLiteral(":/icons/app.ico")));
+    if (windowIcon().isNull())
+        setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
     resize(1280, 820);
 
     m_canvas = new ImageCanvas(this);

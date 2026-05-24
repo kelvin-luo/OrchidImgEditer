@@ -18,6 +18,9 @@
 ## 快速开始
 
 ```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+
 # 在 PowerShell 中（不需要事先开 vcvars，脚本自动处理）
 cd D:\k8\260515kelvin\p206_kImgEdit
 .\build.ps1            # 编译 Release
