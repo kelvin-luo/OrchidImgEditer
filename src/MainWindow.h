@@ -15,6 +15,7 @@ class OcrService;
 class QToolBar;
 class QStatusBar;
 class QEvent;
+class QCloseEvent;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -42,6 +43,7 @@ private slots:
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void buildActions();
@@ -50,6 +52,9 @@ private:
     void applyStyle();
     void enableDragDropOnChildren();
     bool openImagePath(const QString& path);
+    bool maybeSave();
+    bool saveCurrentImage();
+    void updateWindowTitle();
 
     QString currentImageDir() const;
 

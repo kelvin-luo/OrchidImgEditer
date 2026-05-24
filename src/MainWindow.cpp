@@ -36,6 +36,7 @@
 #include <QSettings>
 #include <QRegularExpression>
 #include <QHBoxLayout>
+#include <QCloseEvent>
 
 namespace {
 QIcon icon(const QString& name) {
@@ -96,6 +97,8 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onStatusMsg);
     connect(m_canvas, &ImageCanvas::ocrRegionSelected,
             this, &MainWindow::onOcrRegion);
+    connect(m_canvas, &ImageCanvas::modifiedChanged,
+            this, [this](bool) { updateWindowTitle(); });
 
     enableDragDropOnChildren();
 
@@ -111,10 +114,71 @@ void MainWindow::openInitial(const QString& path) {
 bool MainWindow::openImagePath(const QString& path) {
     if (path.isEmpty() || !QFileInfo::exists(path))
         return false;
+    if (!maybeSave())
+        return false;
     if (!m_canvas->loadImage(path))
         return false;
     m_lastPath = path;
+    updateWindowTitle();
     return true;
+}
+
+void MainWindow::updateWindowTitle() {
+    QString name = m_lastPath.isEmpty()
+        ? tr("(unsaved)")
+        : QFileInfo(m_lastPath).fileName();
+    if (m_canvas->isModified())
+        name += QChar('*');
+    setWindowTitle(QStringLiteral("kImgEdit — %1").arg(name));
+}
+
+bool MainWindow::maybeSave() {
+    if (!m_canvas->hasImage() || !m_canvas->isModified())
+        return true;
+
+    const QString name = m_lastPath.isEmpty()
+        ? tr("Untitled")
+        : QFileInfo(m_lastPath).fileName();
+    const auto ret = QMessageBox::warning(
+        this, tr("Unsaved Changes"),
+        tr("The image \"%1\" has been modified.\nSave changes?").arg(name),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+        QMessageBox::Save);
+
+    if (ret == QMessageBox::Cancel)
+        return false;
+    if (ret == QMessageBox::Discard)
+        return true;
+    return saveCurrentImage();
+}
+
+bool MainWindow::saveCurrentImage() {
+    if (!m_canvas->hasImage())
+        return true;
+
+    if (m_lastPath.isEmpty()) {
+        const bool wasModified = m_canvas->isModified();
+        onSaveAs();
+        return !wasModified || !m_canvas->isModified();
+    }
+
+    if (!m_canvas->saveImage(m_lastPath)) {
+        QMessageBox::warning(this, tr("Save failed"),
+                             tr("Could not save to %1").arg(m_lastPath));
+        return false;
+    }
+    m_canvas->clearModified();
+    updateWindowTitle();
+    statusBar()->showMessage(tr("Saved: %1").arg(m_lastPath), 3000);
+    return true;
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    if (!maybeSave()) {
+        event->ignore();
+        return;
+    }
+    event->accept();
 }
 
 QString MainWindow::currentImageDir() const {
@@ -390,11 +454,7 @@ void MainWindow::onOpen() {
 
 void MainWindow::onSave() {
     if (!m_canvas->hasImage()) return;
-    if (m_lastPath.isEmpty()) { onSaveAs(); return; }
-    if (!m_canvas->saveImage(m_lastPath))
-        QMessageBox::warning(this, tr("Save failed"), tr("Could not save to %1").arg(m_lastPath));
-    else
-        statusBar()->showMessage(tr("Saved: %1").arg(m_lastPath), 3000);
+    saveCurrentImage();
 }
 
 void MainWindow::onSaveAs() {
@@ -413,6 +473,7 @@ void MainWindow::onSaveAs() {
         return;
     }
     m_lastPath = path;
+    m_canvas->clearModified();
     statusBar()->showMessage(tr("Saved: %1").arg(path), 3000);
     onImageLoaded(m_canvas->image().size());
 }
@@ -449,8 +510,7 @@ void MainWindow::onImageLoaded(const QSize& s) {
     else
         m_lblPath->setText(m_lastPath);
     m_lblSize->setText(tr("Image: %1 x %2").arg(s.width()).arg(s.height()));
-    setWindowTitle(QStringLiteral("kImgEdit — %1")
-                       .arg(m_lastPath.isEmpty() ? tr("(unsaved)") : QFileInfo(m_lastPath).fileName()));
+    updateWindowTitle();
 }
 
 void MainWindow::onScaleChanged(double s) {

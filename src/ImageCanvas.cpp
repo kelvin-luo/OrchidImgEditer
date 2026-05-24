@@ -154,6 +154,7 @@ bool ImageCanvas::loadImage(const QString& path) {
     m_image = img.convertToFormat(QImage::Format_RGBA8888);
     m_undo.clear();
     emit undoAvailable(false);
+    clearModified();
     emit imageLoaded(m_image.size());
     emit statusMessage(tr("Loaded %1  (%2x%3)")
                        .arg(QFileInfo(path).fileName())
@@ -227,6 +228,19 @@ void ImageCanvas::pushUndoSnapshot() {
     }
     m_undo.push(m_image.copy());
     emit undoAvailable(true);
+    markModified();
+}
+
+void ImageCanvas::markModified() {
+    if (m_modified) return;
+    m_modified = true;
+    emit modifiedChanged(true);
+}
+
+void ImageCanvas::clearModified() {
+    if (!m_modified) return;
+    m_modified = false;
+    emit modifiedChanged(false);
 }
 
 void ImageCanvas::applyZoomAround(double newScale, const QPointF& widgetAnchor) {

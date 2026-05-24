@@ -48,6 +48,9 @@ public:
 
     bool canUndo() const                   { return !m_undo.isEmpty(); }
 
+    bool isModified() const                { return m_modified; }
+    void clearModified();
+
     void setDropHighlight(bool on);
 
     // Returns the first local image file path from a drag payload, or empty.
@@ -72,6 +75,7 @@ signals:
     void undoAvailable(bool yes);
     void statusMessage(const QString& msg);
     void ocrRegionSelected(QRect imgRect);
+    void modifiedChanged(bool modified);
 
 protected:
     void paintEvent(QPaintEvent* ev) override;
@@ -88,6 +92,7 @@ private:
     QPointF imageToWidget(const QPointF& imgPos) const;
 
     void pushUndoSnapshot();
+    void markModified();
     void applyZoomAround(double newScale, const QPointF& widgetAnchor);
 
     // Commit helpers: paint final shape onto m_image
@@ -113,6 +118,7 @@ private:
     QImage     m_checker;        // background checker pattern
     QStack<QImage> m_undo;       // undo snapshots
     int        m_undoLimit = 30;
+    bool       m_modified = false;
 
     double     m_scale  = 1.0;
     QPointF    m_offset {0, 0};  // top-left of image (in widget coords)
