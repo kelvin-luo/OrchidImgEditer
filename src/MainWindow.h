@@ -14,6 +14,7 @@ class ImageCanvas;
 class OcrService;
 class QToolBar;
 class QStatusBar;
+class QEvent;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -38,11 +39,16 @@ private slots:
     void onClearTesseractPath();
     void onShowTesseractStatus();
 
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     void buildActions();
     void buildToolBars();
     void buildStatusBar();
     void applyStyle();
+    void enableDragDropOnChildren();
+    bool openImagePath(const QString& path);
 
     QString currentImageDir() const;
 

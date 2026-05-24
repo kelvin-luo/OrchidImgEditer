@@ -8,6 +8,8 @@
 #include <QFontMetrics>
 #include <QtMath>
 #include <QFileInfo>
+#include <QMimeData>
+#include <QUrl>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -51,6 +53,15 @@ QImage makeChecker(int tile = 16) {
     return img;
 }
 
+bool isImageExtension(const QString& ext) {
+    static const QStringList kExts = {
+        QStringLiteral("png"),  QStringLiteral("jpg"),  QStringLiteral("jpeg"),
+        QStringLiteral("bmp"),  QStringLiteral("tif"),  QStringLiteral("tiff"),
+        QStringLiteral("webp"), QStringLiteral("gif"),  QStringLiteral("ico"),
+    };
+    return kExts.contains(ext.toLower());
+}
+
 } // anon
 
 ImageCanvas::ImageCanvas(QWidget* parent)
@@ -60,7 +71,26 @@ ImageCanvas::ImageCanvas(QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setMinimumSize(400, 300);
+    setAcceptDrops(true);
     m_checker = makeChecker(12);
+}
+
+QString ImageCanvas::imagePathFromMime(const QMimeData* mime) {
+    if (!mime || !mime->hasUrls()) return {};
+
+    for (const QUrl& url : mime->urls()) {
+        if (!url.isLocalFile()) continue;
+        const QString path = url.toLocalFile();
+        if (isImageExtension(QFileInfo(path).suffix()))
+            return path;
+    }
+    return {};
+}
+
+void ImageCanvas::setDropHighlight(bool on) {
+    if (m_dropHighlight == on) return;
+    m_dropHighlight = on;
+    update();
 }
 
 bool ImageCanvas::loadImage(const QString& path) {
@@ -180,8 +210,17 @@ void ImageCanvas::paintEvent(QPaintEvent*) {
         p.setPen(QColor(180, 180, 180));
         p.setFont(QFont(QStringLiteral("Microsoft YaHei"), 14));
         p.drawText(rect(), Qt::AlignCenter,
-                   tr("Use [Open] to load an image\n"
+                   tr("Use [Open] or drag & drop an image here\n"
                       "Wheel: zoom around cursor   Right-drag: pan   Ctrl+Z: undo"));
+        if (m_dropHighlight) {
+            p.fillRect(rect(), QColor(74, 111, 165, 72));
+            p.setPen(QPen(QColor(120, 170, 255), 2, Qt::DashLine));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(rect().adjusted(6, 6, -6, -6));
+            p.setPen(QColor(220, 230, 255));
+            p.setFont(QFont(QStringLiteral("Microsoft YaHei"), 15, QFont::Bold));
+            p.drawText(rect(), Qt::AlignCenter, tr("Drop image to open"));
+        }
         return;
     }
 
@@ -209,6 +248,16 @@ void ImageCanvas::paintEvent(QPaintEvent*) {
     // Preview of current operation
     if (m_drawing && m_tool != kimg::Tool::None) {
         drawPreview(p);
+    }
+
+    if (m_dropHighlight) {
+        p.fillRect(rect(), QColor(74, 111, 165, 72));
+        p.setPen(QPen(QColor(120, 170, 255), 2, Qt::DashLine));
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(rect().adjusted(6, 6, -6, -6));
+        p.setPen(QColor(220, 230, 255));
+        p.setFont(QFont(QStringLiteral("Microsoft YaHei"), 15, QFont::Bold));
+        p.drawText(rect(), Qt::AlignCenter, tr("Drop image to open"));
     }
 }
 

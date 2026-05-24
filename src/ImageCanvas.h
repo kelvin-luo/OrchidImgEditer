@@ -9,6 +9,8 @@
 #include <QVector>
 #include <QStack>
 
+class QMimeData;
+
 class ImageCanvas : public QWidget {
     Q_OBJECT
 
@@ -36,6 +38,11 @@ public:
     int  textFontSize() const              { return m_textFontSize; }
 
     bool canUndo() const                   { return !m_undo.isEmpty(); }
+
+    void setDropHighlight(bool on);
+
+    // Returns the first local image file path from a drag payload, or empty.
+    static QString imagePathFromMime(const QMimeData* mime);
 
 public slots:
     void undo();
@@ -108,4 +115,6 @@ private:
     QVector<QPointF> m_pencilPts;     // image coords pencil trace
 
     QPointF    m_offsetAtPanStart;
+
+    bool       m_dropHighlight = false;
 };

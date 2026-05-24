@@ -25,6 +25,11 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QProcess>
+#include <QEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDragLeaveEvent>
+#include <QDropEvent>
 
 namespace {
 QIcon icon(const QString& name) {
@@ -64,16 +69,24 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_canvas, &ImageCanvas::ocrRegionSelected,
             this, &MainWindow::onOcrRegion);
 
+    enableDragDropOnChildren();
+
     m_actUndo->setEnabled(false);
 }
 
 MainWindow::~MainWindow() = default;
 
 void MainWindow::openInitial(const QString& path) {
-    if (!path.isEmpty() && QFileInfo::exists(path)) {
-        if (m_canvas->loadImage(path))
-            m_lastPath = path;
-    }
+    openImagePath(path);
+}
+
+bool MainWindow::openImagePath(const QString& path) {
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        return false;
+    if (!m_canvas->loadImage(path))
+        return false;
+    m_lastPath = path;
+    return true;
 }
 
 QString MainWindow::currentImageDir() const {
@@ -289,13 +302,57 @@ void MainWindow::applyStyle() {
     setStyleSheet(QString::fromLatin1(kQss));
 }
 
+void MainWindow::enableDragDropOnChildren() {
+    setAcceptDrops(true);
+    installEventFilter(this);
+
+    const auto widgets = findChildren<QWidget*>();
+    for (QWidget* w : widgets) {
+        w->setAcceptDrops(true);
+        w->installEventFilter(this);
+    }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    switch (event->type()) {
+    case QEvent::DragEnter:
+    case QEvent::DragMove: {
+        auto* e = static_cast<QDragMoveEvent*>(event);
+        if (ImageCanvas::imagePathFromMime(e->mimeData()).isEmpty())
+            break;
+        e->acceptProposedAction();
+        const bool onCanvas = (watched == m_canvas);
+        m_canvas->setDropHighlight(onCanvas);
+        return true;
+    }
+    case QEvent::DragLeave:
+        m_canvas->setDropHighlight(false);
+        break;
+    case QEvent::Drop: {
+        auto* e = static_cast<QDropEvent*>(event);
+        const QString path = ImageCanvas::imagePathFromMime(e->mimeData());
+        m_canvas->setDropHighlight(false);
+        if (path.isEmpty())
+            break;
+        if (openImagePath(path)) {
+            e->acceptProposedAction();
+            statusBar()->showMessage(tr("Opened: %1").arg(path), 3000);
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::onOpen() {
     QString path = QFileDialog::getOpenFileName(
         this, tr("Open Image"), currentImageDir(),
         tr("Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All files (*.*)"));
     if (path.isEmpty()) return;
-    if (m_canvas->loadImage(path))
-        m_lastPath = path;
+    openImagePath(path);
 }
 
 void MainWindow::onSave() {
