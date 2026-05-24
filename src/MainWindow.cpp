@@ -30,11 +30,39 @@
 #include <QDragMoveEvent>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QGroupBox>
+#include <QSettings>
+#include <QRegularExpression>
+#include <QHBoxLayout>
 
 namespace {
 QIcon icon(const QString& name) {
     return QIcon(QStringLiteral(":/icons/%1.svg").arg(name));
 }
+
+bool parseRoiPaddingText(const QString& text, RoiPadding* out) {
+    if (!out) return false;
+    QString s = text.trimmed();
+    s.replace(QChar(0xFF0C), QLatin1Char(',')); // full-width comma
+    s.replace(QRegularExpression(QStringLiteral("[\\s;]+")), QStringLiteral(","));
+    const QStringList parts = s.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    if (parts.size() != 4) return false;
+
+    bool ok = true;
+    out->top    = parts[0].trimmed().toInt(&ok); if (!ok) return false;
+    out->bottom = parts[1].trimmed().toInt(&ok); if (!ok) return false;
+    out->left   = parts[2].trimmed().toInt(&ok); if (!ok) return false;
+    out->right  = parts[3].trimmed().toInt(&ok); if (!ok) return false;
+    return true;
+}
+
+QString roiPaddingText(const RoiPadding& pad) {
+    return QStringLiteral("%1,%2,%3,%4")
+        .arg(pad.top).arg(pad.bottom).arg(pad.left).arg(pad.right);
+}
+
 } // anon
 
 MainWindow::MainWindow(QWidget* parent)
@@ -130,6 +158,7 @@ void MainWindow::buildActions() {
     m_actOcr    = makeTool(QStringLiteral("ocr"),    tr("OCR (extract text)"));
     m_actText   = makeTool(QStringLiteral("text"),   tr("Add Text"));
     m_actCrop   = makeTool(QStringLiteral("crop"),   tr("Crop"));
+    m_actRoi    = new QAction(icon(QStringLiteral("roi")), tr("ROI Extract (Padding)..."), this);
 
     m_actLine  ->setData(int(kimg::Tool::Line));
     m_actRect  ->setData(int(kimg::Tool::Rectangle));
@@ -151,6 +180,7 @@ void MainWindow::buildActions() {
 
     m_actColor = new QAction(icon(QStringLiteral("color")), tr("Color"), this);
     connect(m_actColor, &QAction::triggered, this, &MainWindow::onPickColor);
+    connect(m_actRoi,   &QAction::triggered, this, &MainWindow::onRoiExtract);
 
     // Settings actions
     m_actSetTess   = new QAction(icon(QStringLiteral("settings")), tr("Tesseract Path..."), this);
@@ -170,6 +200,8 @@ void MainWindow::buildActions() {
 
     QMenu* mEdit = menuBar()->addMenu(tr("&Edit"));
     mEdit->addAction(m_actUndo);
+    mEdit->addSeparator();
+    mEdit->addAction(m_actRoi);
 
     QMenu* mView = menuBar()->addMenu(tr("&View"));
     mView->addAction(m_actFit);
@@ -218,6 +250,7 @@ void MainWindow::buildToolBars() {
     tb->addAction(m_actText);
     tb->addAction(m_actOcr);
     tb->addAction(m_actCrop);
+    tb->addAction(m_actRoi);
     tb->addSeparator();
 
     tb->addAction(m_actColor);
@@ -545,6 +578,138 @@ void MainWindow::onShowTesseractStatus() {
     box.setText(html);
     box.setIcon(resolved.isEmpty() ? QMessageBox::Warning : QMessageBox::Information);
     box.exec();
+}
+
+void MainWindow::onRoiExtract() {
+    if (!m_canvas->hasImage()) {
+        QMessageBox::information(this, tr("ROI Extract"),
+                                 tr("Please open an image first."));
+        return;
+    }
+
+    QSettings settings;
+    RoiPadding pad;
+    pad.top    = settings.value(QStringLiteral("roi/top"),    0).toInt();
+    pad.bottom = settings.value(QStringLiteral("roi/bottom"), 0).toInt();
+    pad.left   = settings.value(QStringLiteral("roi/left"),   0).toInt();
+    pad.right  = settings.value(QStringLiteral("roi/right"),  0).toInt();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("ROI Extract (Padding)"));
+    dlg.resize(440, 320);
+
+    auto* root = new QVBoxLayout(&dlg);
+
+    auto* hint = new QLabel(
+        tr("Enter padding for Top, Bottom, Left, Right.\n"
+           "Positive = shrink inward; Negative = expand outward.\n"
+           "Example: 10,10,20,20"), &dlg);
+    hint->setWordWrap(true);
+    root->addWidget(hint);
+
+    auto* quickEdit = new QLineEdit(roiPaddingText(pad), &dlg);
+    quickEdit->setPlaceholderText(tr("Top,Bottom,Left,Right  e.g. 10,10,20,20"));
+    root->addWidget(quickEdit);
+
+    auto* form = new QFormLayout();
+    auto* spinTop = new QSpinBox(&dlg);
+    auto* spinBottom = new QSpinBox(&dlg);
+    auto* spinLeft = new QSpinBox(&dlg);
+    auto* spinRight = new QSpinBox(&dlg);
+    for (QSpinBox* sp : { spinTop, spinBottom, spinLeft, spinRight }) {
+        sp->setRange(-100000, 100000);
+        sp->setAccelerated(true);
+    }
+    spinTop->setValue(pad.top);
+    spinBottom->setValue(pad.bottom);
+    spinLeft->setValue(pad.left);
+    spinRight->setValue(pad.right);
+    form->addRow(tr("Top"), spinTop);
+    form->addRow(tr("Bottom"), spinBottom);
+    form->addRow(tr("Left"), spinLeft);
+    form->addRow(tr("Right"), spinRight);
+    root->addLayout(form);
+
+    auto* lblSrc = new QLabel(&dlg);
+    auto* lblOut = new QLabel(&dlg);
+    root->addWidget(lblSrc);
+    root->addWidget(lblOut);
+
+    auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    root->addWidget(box);
+    connect(box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    bool syncing = false;
+    auto refresh = [&]() {
+        if (syncing) return;
+        syncing = true;
+
+        pad.top    = spinTop->value();
+        pad.bottom = spinBottom->value();
+        pad.left   = spinLeft->value();
+        pad.right  = spinRight->value();
+        quickEdit->setText(roiPaddingText(pad));
+
+        const QSize src = m_canvas->image().size();
+        const QRect roi = ImageCanvas::roiRectFromPadding(src, pad);
+        lblSrc->setText(tr("Source: %1 x %2").arg(src.width()).arg(src.height()));
+        if (roi.width() > 0 && roi.height() > 0) {
+            lblOut->setText(tr("Output: %1 x %2").arg(roi.width()).arg(roi.height()));
+            lblOut->setStyleSheet(QString());
+            m_canvas->setRoiPaddingPreview(pad);
+        } else {
+            lblOut->setText(tr("Output: invalid size (%1 x %2)")
+                                .arg(roi.width()).arg(roi.height()));
+            lblOut->setStyleSheet(QStringLiteral("color: #e57373;"));
+            m_canvas->clearRoiPaddingPreview();
+        }
+
+        syncing = false;
+    };
+
+    connect(spinTop,    qOverload<int>(&QSpinBox::valueChanged), &dlg, refresh);
+    connect(spinBottom, qOverload<int>(&QSpinBox::valueChanged), &dlg, refresh);
+    connect(spinLeft,   qOverload<int>(&QSpinBox::valueChanged), &dlg, refresh);
+    connect(spinRight,  qOverload<int>(&QSpinBox::valueChanged), &dlg, refresh);
+
+    connect(quickEdit, &QLineEdit::editingFinished, &dlg, [&]() {
+        RoiPadding parsed;
+        if (!parseRoiPaddingText(quickEdit->text(), &parsed)) {
+            quickEdit->setStyleSheet(QStringLiteral("border: 1px solid #e57373;"));
+            return;
+        }
+        quickEdit->setStyleSheet(QString());
+        syncing = true;
+        spinTop->setValue(parsed.top);
+        spinBottom->setValue(parsed.bottom);
+        spinLeft->setValue(parsed.left);
+        spinRight->setValue(parsed.right);
+        syncing = false;
+        refresh();
+    });
+
+    refresh();
+
+    const int ret = dlg.exec();
+    m_canvas->clearRoiPaddingPreview();
+
+    if (ret != QDialog::Accepted) return;
+
+    pad.top    = spinTop->value();
+    pad.bottom = spinBottom->value();
+    pad.left   = spinLeft->value();
+    pad.right  = spinRight->value();
+
+    settings.setValue(QStringLiteral("roi/top"),    pad.top);
+    settings.setValue(QStringLiteral("roi/bottom"), pad.bottom);
+    settings.setValue(QStringLiteral("roi/left"),   pad.left);
+    settings.setValue(QStringLiteral("roi/right"),  pad.right);
+
+    if (!m_canvas->extractRoiByPadding(pad)) {
+        QMessageBox::warning(this, tr("ROI Extract"),
+                             tr("Failed to extract ROI. Check padding values."));
+    }
 }
 
 void MainWindow::onOcrRegion(QRect r) {

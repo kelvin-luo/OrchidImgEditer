@@ -16,6 +16,7 @@
         <file>icons/text.svg</file>
         <file>icons/ocr.svg</file>
         <file>icons/crop.svg</file>
+        <file>icons/roi.svg</file>
         <file>icons/color.svg</file>
         <file>icons/settings.svg</file>
     </qresource>

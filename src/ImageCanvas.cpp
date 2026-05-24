@@ -93,6 +93,58 @@ void ImageCanvas::setDropHighlight(bool on) {
     update();
 }
 
+QRect ImageCanvas::roiRectFromPadding(const QSize& imageSize, const RoiPadding& pad) {
+    if (imageSize.isEmpty()) return {};
+    const int w = imageSize.width()  - pad.left - pad.right;
+    const int h = imageSize.height() - pad.top  - pad.bottom;
+    return QRect(pad.left, pad.top, w, h);
+}
+
+void ImageCanvas::setRoiPaddingPreview(const RoiPadding& pad) {
+    m_roiPreview = pad;
+    m_roiPreviewActive = true;
+    update();
+}
+
+void ImageCanvas::clearRoiPaddingPreview() {
+    if (!m_roiPreviewActive) return;
+    m_roiPreviewActive = false;
+    update();
+}
+
+bool ImageCanvas::extractRoiByPadding(const RoiPadding& pad) {
+    if (m_image.isNull()) return false;
+
+    const QRect src = roiRectFromPadding(m_image.size(), pad);
+    if (src.width() <= 0 || src.height() <= 0) {
+        emit statusMessage(tr("Invalid ROI padding: result size %1 x %2")
+                               .arg(src.width()).arg(src.height()));
+        return false;
+    }
+
+    pushUndoSnapshot();
+
+    QImage out(src.width(), src.height(), QImage::Format_RGBA8888);
+    out.fill(Qt::transparent);
+
+    const QRect inside = src.intersected(m_image.rect());
+    if (!inside.isEmpty()) {
+        QPainter p(&out);
+        p.drawImage(inside.translated(-src.topLeft()), m_image, inside);
+    }
+
+    m_image = out;
+    m_roiPreviewActive = false;
+    emit imageLoaded(m_image.size());
+    emit statusMessage(tr("ROI extract: %1 x %2  (padding T/B/L/R = %3/%4/%5/%6)")
+                           .arg(out.width()).arg(out.height())
+                           .arg(pad.top).arg(pad.bottom)
+                           .arg(pad.left).arg(pad.right));
+    zoomToFit();
+    update();
+    return true;
+}
+
 bool ImageCanvas::loadImage(const QString& path) {
     QImage img;
     if (!img.load(path)) {
@@ -250,6 +302,10 @@ void ImageCanvas::paintEvent(QPaintEvent*) {
         drawPreview(p);
     }
 
+    if (m_roiPreviewActive && !m_image.isNull()) {
+        drawRoiPaddingPreview(p);
+    }
+
     if (m_dropHighlight) {
         p.fillRect(rect(), QColor(74, 111, 165, 72));
         p.setPen(QPen(QColor(120, 170, 255), 2, Qt::DashLine));
@@ -320,6 +376,34 @@ void ImageCanvas::drawPreview(QPainter& p) {
             break;
         }
         default: break;
+    }
+}
+
+void ImageCanvas::drawRoiPaddingPreview(QPainter& p) {
+    const QRect roi = roiRectFromPadding(m_image.size(), m_roiPreview);
+    if (roi.isEmpty()) return;
+
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    // Full expanded bounds (may extend outside image when padding is negative).
+    const QRectF roiW(
+        imageToWidget(QPointF(roi.x(), roi.y())),
+        imageToWidget(QPointF(roi.x() + roi.width(), roi.y() + roi.height())));
+
+    QPen outer(QColor(255, 180, 60), 2, Qt::DashLine);
+    p.setPen(outer);
+    p.setBrush(QColor(255, 180, 60, 35));
+    p.drawRect(roiW.normalized());
+
+    // Visible image area for reference.
+    const QRectF imgW(m_offset,
+                      QSizeF(m_image.width() * m_scale, m_image.height() * m_scale));
+    const QRectF visible = roiW.normalized().intersected(imgW);
+    if (!visible.isEmpty()) {
+        QPen inner(QColor(80, 220, 120), 2, Qt::SolidLine);
+        p.setPen(inner);
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(visible);
     }
 }
 

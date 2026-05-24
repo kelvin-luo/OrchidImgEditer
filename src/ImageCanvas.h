@@ -8,8 +8,17 @@
 #include <QPointF>
 #include <QVector>
 #include <QStack>
+#include <QRect>
 
 class QMimeData;
+
+// ROI padding: top, bottom, left, right (positive = inward, negative = outward).
+struct RoiPadding {
+    int top = 0;
+    int bottom = 0;
+    int left = 0;
+    int right = 0;
+};
 
 class ImageCanvas : public QWidget {
     Q_OBJECT
@@ -43,6 +52,13 @@ public:
 
     // Returns the first local image file path from a drag payload, or empty.
     static QString imagePathFromMime(const QMimeData* mime);
+
+    // ROI = full image rect adjusted by padding (positive shrinks, negative expands).
+    static QRect roiRectFromPadding(const QSize& imageSize, const RoiPadding& pad);
+
+    void setRoiPaddingPreview(const RoiPadding& pad);
+    void clearRoiPaddingPreview();
+    bool extractRoiByPadding(const RoiPadding& pad);
 
 public slots:
     void undo();
@@ -86,6 +102,7 @@ private:
 
     // Preview drawing on widget
     void drawPreview(QPainter& painter);
+    void drawRoiPaddingPreview(QPainter& painter);
 
     QPen makePen() const;
 
@@ -117,4 +134,7 @@ private:
     QPointF    m_offsetAtPanStart;
 
     bool       m_dropHighlight = false;
+
+    bool       m_roiPreviewActive = false;
+    RoiPadding m_roiPreview;
 };

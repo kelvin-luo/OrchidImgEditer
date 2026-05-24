@@ -38,6 +38,7 @@ private slots:
     void onSetTesseractPath();
     void onClearTesseractPath();
     void onShowTesseractStatus();
+    void onRoiExtract();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -73,6 +74,7 @@ private:
     QAction* m_actOcr    = nullptr;
     QAction* m_actText   = nullptr;
     QAction* m_actCrop   = nullptr;
+    QAction* m_actRoi    = nullptr;
 
     QAction* m_actColor  = nullptr;
 
