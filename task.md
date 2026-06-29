@@ -18,7 +18,7 @@ halcon根目录是："C:\Users\kelvin\AppData\Local\Programs\MVTec\HALCON-24.11-
 halcon根目录也可能是："D:\binWin10_D\halcon-24.11-progress-steady"
 cmake目录是：D:\win10\cmake-4.3.2-windows-x86_64\bin\cmake.exe
 ninja可执行文件：D:\win10\ninja.exe
- 
+tesseract目录："D:\Program Files\Tesseract-OCR"
 
 
 项目目录结构如下：
@@ -51,6 +51,28 @@ fix:
 添加支持输入一个roi(四个数字分别表示上下左右的paddding，正数内缩，负数外扩)，以便进行抠图；
 
 图片被编辑后，在关闭程序，或者加载新图的时候，如果没有保存，弹窗提示是否保存。
+
+Tesseract OCR engine not found.
+To enable OCR:
+  - Menu "Settings -> Tesseract Path..." to point at tesseract.exe, or
+  - Install Tesseract (https://github.com/UB-Mannheim/tesseract/wiki),
+    add it to PATH, or set environment variable KIMG_TESSERACT.
+  - (Optional) Install Chinese data: chi_sim.traineddata
+直接将OCR模型下载下来，放到合适的位置；
+
+默认打开图像D:\k8\mdedia_img\深圳市宝安区南昌公园_20260620181419_216_70.jpg
+
+Tesseract failed (exit=1).
+stderr:
+Error opening data file D:\k8\260515kelvin\p206_kImgEdit\msvc_release\tesseract/chi_sim.traineddata
+Please make sure the TESSDATA_PREFIX environment variable is set to your "tessdata" directory.
+Failed loading language 'chi_sim'
+Error opening data file D:\k8\260515kelvin\p206_kImgEdit\msvc_release\tesseract/eng.traineddata
+Please make sure the TESSDATA_PREFIX environment variable is set to your "tessdata" directory.
+Failed loading language 'eng'
+Tesseract couldn't load any languages!
+Could not initialize tesseract.
+
 ```
 
 以下无效：
@@ -95,3 +117,14 @@ build.bat              REM 编译 Release
 build.bat -Clean       REM 清理后重编
 run.bat                REM 运行
 ```
+
+**OCR（首次或更新语言包后）**：
+
+```bat
+code\scripts\setup_tesseract.bat
+REM 默认从 D:\Program Files\Tesseract-OCR 复制到 msvc_release\tesseract
+```
+
+D:\k8\mdedia_img\深圳市宝安区南昌公园_20260620181419_216_70.jpg
+
+

@@ -119,6 +119,29 @@ $Exe = Join-Path $ReleaseDir 'kImgEdit.exe'
 Write-Host ""
 Write-Host "[done] -> $Exe" -ForegroundColor Green
 
+# Deploy bundled Tesseract OCR (if deps_sdk/tesseract was set up)
+$TessSrc = Join-Path $ProjectDir 'deps_sdk\tesseract'
+$TessExe = Join-Path $TessSrc 'tesseract.exe'
+if (-not (Test-Path $TessExe)) {
+    $hit = Get-ChildItem -Path $TessSrc -Filter 'tesseract.exe' -Recurse -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($hit) { $TessExe = $hit.FullName }
+}
+$TessDst = Join-Path $ReleaseDir 'tesseract'
+$ModelsTessdata = Join-Path $ReleaseDir 'models\tessdata'
+if (Test-Path $TessExe) {
+    Write-Host "[deploy] tesseract -> msvc_release\tesseract" -ForegroundColor Cyan
+    if (Test-Path $TessDst) { Remove-Item -Recurse -Force $TessDst }
+    Copy-Item -Path $TessSrc -Destination $TessDst -Recurse -Force
+    $srcTessdata = Join-Path $TessSrc 'tessdata'
+    if (Test-Path $srcTessdata) {
+        New-Item -ItemType Directory -Force -Path $ModelsTessdata | Out-Null
+        Copy-Item -Path (Join-Path $srcTessdata '*.traineddata') -Destination $ModelsTessdata -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    Write-Host "[hint] OCR not bundled. Run: code\scripts\setup_tesseract.bat" -ForegroundColor DarkYellow
+}
+
 if ($Run) {
     Write-Host "[run]" -ForegroundColor Green
     Push-Location $ReleaseDir

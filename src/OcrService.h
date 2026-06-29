@@ -26,16 +26,19 @@ public:
     // 'langs' example: "chi_sim+eng" or "eng".
     Result recognize(const QImage& img, const QString& langs = QStringLiteral("chi_sim+eng"));
 
-    // Resolve order: QSettings("tesseract/path") -> env KIMG_TESSERACT
+    // Resolve order: QSettings -> env KIMG_TESSERACT -> bundled (next to exe)
     //              -> PATH lookup -> common install locations.
     static QString findTesseract();
     static bool    tesseractAvailable() { return !findTesseract().isEmpty(); }
+
+    // Parent directory of tessdata/ when using the bundled layout (exe dir / tesseract).
+    static QString bundledTessdataPrefix();
 
     // Persistent override (saved in QSettings, group "ocr", key "tesseract").
     // Pass an empty string to clear.
     static QString userTesseractPath();
     static void    setUserTesseractPath(const QString& abs);
 
-    // Return one of: "user-setting", "env", "PATH", "preset", or empty if not found.
+    // Return one of: "user-setting", "env", "bundled", "PATH", "preset", or empty.
     static QString tesseractSource();
 };
