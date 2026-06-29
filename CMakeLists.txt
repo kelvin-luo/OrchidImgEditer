@@ -6,6 +6,12 @@ project(kImgEdit
     LANGUAGES CXX
 )
 
+# Output layout (relative to project root, one level above code/)
+get_filename_component(KIMG_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${KIMG_PROJECT_ROOT}/msvc_release")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${KIMG_PROJECT_ROOT}/msvc_release")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${KIMG_PROJECT_ROOT}/build_msvc")
+
 # ============ Global compile settings ============
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,7 +40,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Svg)
 
 # ============ OpenCV ============
 if(NOT DEFINED OpenCV_DIR AND NOT DEFINED ENV{OpenCV_DIR})
-    set(_default_ocv "D:/win10/opencv4130/build")
+    set(_default_ocv "D:/win10/opencv500/build")
     if(EXISTS "${_default_ocv}/OpenCVConfig.cmake")
         set(OpenCV_DIR "${_default_ocv}")
         message(STATUS "kImgEdit: using default OpenCV at ${_default_ocv}")
@@ -117,14 +123,28 @@ if(WIN32)
     endif()
 
     # Copy required OpenCV DLLs next to the exe
-    set(_opencv_bin_dir "${OpenCV_DIR}/x64/vc16/bin")
-    if(EXISTS "${_opencv_bin_dir}")
+    set(_opencv_bin_candidates
+        "${OpenCV_DIR}/x64/vc17/bin"
+        "${OpenCV_DIR}/x64/vc16/bin"
+        "${OpenCV_DIR}/bin"
+    )
+    set(_opencv_bin_dir "")
+    foreach(_candidate IN LISTS _opencv_bin_candidates)
+        if(EXISTS "${_candidate}")
+            set(_opencv_bin_dir "${_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(_opencv_bin_dir)
         file(GLOB _opencv_world_dlls "${_opencv_bin_dir}/opencv_world*.dll")
         foreach(_dll IN LISTS _opencv_world_dlls)
             add_custom_command(TARGET kImgEdit POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${_dll}" "$<TARGET_FILE_DIR:kImgEdit>")
         endforeach()
+        message(STATUS "kImgEdit: OpenCV runtime DLLs from ${_opencv_bin_dir}")
+    else()
+        message(WARNING "kImgEdit: OpenCV bin dir not found under ${OpenCV_DIR}; add OpenCV DLLs to PATH at runtime")
     endif()
 endif()
 

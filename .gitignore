@@ -1,2 +1,4 @@
 /output
+/../build_msvc
+/../msvc_release
 /.vscode

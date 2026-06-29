@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     - Loads the MSVC 2022 x64 environment (vcvars64.bat).
-    - Configures and builds an out-of-source build under .\output\<config>.
+    - Configures under <project>/build_msvc, outputs exe/DLLs to <project>/msvc_release.
     - Default config is Release. Pass -Config Debug for a debug build.
 
 .EXAMPLE
@@ -21,8 +21,8 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'  # native stderr (CMake warnings) must NOT abort
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $ScriptDir
+$CodeDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectDir = Split-Path -Parent $CodeDir
 
 function _Die($msg) {
     Write-Host "[error] $msg" -ForegroundColor Red
@@ -30,15 +30,42 @@ function _Die($msg) {
 }
 
 # --- Toolchain locations -----------------------------------------------------
-$CMakeExe = 'D:\win10\cmake-4.2.1-windows-x86_64\bin\cmake.exe'
+$CMakeExe = 'D:\win10\cmake-4.3.2-windows-x86_64\bin\cmake.exe'
 $NinjaExe = 'D:\win10\ninja.exe'
 $QtDir    = 'D:\Qt6\6.9.1\msvc2022_64'
-$OpenCV   = 'D:\win10\opencv4130\build'
+$OpenCV   = 'D:\win10\opencv500\build'
+
+$OpenCV   = 'D:\win10\opencv500\build'
+if (-not (Test-Path (Join-Path $OpenCV 'OpenCVConfig.cmake'))) {
+    $fallback = 'D:\win10\opencv4130\build'
+    if (Test-Path (Join-Path $fallback 'OpenCVConfig.cmake')) {
+        Write-Host "[warn] OpenCV 5.0 not found at $OpenCV; using $fallback" -ForegroundColor Yellow
+        $OpenCV = $fallback
+    }
+}
 
 if (-not (Test-Path $CMakeExe)) { _Die "CMake not found: $CMakeExe" }
 if (-not (Test-Path $NinjaExe)) { _Die "Ninja not found: $NinjaExe" }
+if (-not (Test-Path (Join-Path $OpenCV 'OpenCVConfig.cmake'))) {
+    _Die "OpenCV not found: $OpenCV\OpenCVConfig.cmake`nInstall OpenCV 5.0 to D:\win10\opencv500\build or adjust paths in build.ps1."
+}
 
-# Locate vcvars64.bat for MSVC 2022
+# --- Output directories (relative to project root) ---------------------------
+$BuildDir   = Join-Path $ProjectDir 'build_msvc'
+$ReleaseDir = Join-Path $ProjectDir 'msvc_release'
+
+if ($Clean -and (Test-Path $BuildDir)) {
+    Write-Host "[clean] removing $BuildDir" -ForegroundColor Yellow
+    Remove-Item -Recurse -Force $BuildDir
+}
+New-Item -ItemType Directory -Force -Path $BuildDir   | Out-Null
+New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
+foreach ($sub in @('models', 'input', 'output')) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $ReleaseDir $sub) | Out-Null
+}
+
+# --- Import MSVC env into current PowerShell --------------------------------
+Write-Host "[env] loading MSVC env from vcvars64.bat" -ForegroundColor Cyan
 $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vsWhere)) {
     $vsWhere = "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -53,17 +80,6 @@ if (-not $vsInstall) { _Die "Visual Studio with VC tools not found." }
 $VcVars = Join-Path $vsInstall 'VC\Auxiliary\Build\vcvars64.bat'
 if (-not (Test-Path $VcVars)) { _Die "vcvars64.bat not found at $VcVars" }
 
-# --- Output directories ------------------------------------------------------
-$OutRoot  = Join-Path $ScriptDir 'output'
-$BuildDir = Join-Path $OutRoot   $Config
-if ($Clean -and (Test-Path $BuildDir)) {
-    Write-Host "[clean] removing $BuildDir" -ForegroundColor Yellow
-    Remove-Item -Recurse -Force $BuildDir
-}
-New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
-
-# --- Import MSVC env into current PowerShell --------------------------------
-Write-Host "[env] loading MSVC env from vcvars64.bat" -ForegroundColor Cyan
 $tmp = [System.IO.Path]::GetTempFileName() + ".bat"
 @"
 @echo off
@@ -79,9 +95,9 @@ foreach ($line in $envLines) {
 }
 
 # --- Configure --------------------------------------------------------------
-Write-Host "[configure] $Config" -ForegroundColor Green
+Write-Host "[configure] $Config  (build: build_msvc, output: msvc_release)" -ForegroundColor Green
 $cfgArgs = @(
-    '-S', $ScriptDir,
+    '-S', $CodeDir,
     '-B', $BuildDir,
     '-G', 'Ninja',
     "-DCMAKE_MAKE_PROGRAM=$NinjaExe",
@@ -99,11 +115,12 @@ Write-Host "[build]" -ForegroundColor Green
 & $CMakeExe --build $BuildDir --parallel 2>&1 | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) { _Die "Build failed (exit=$LASTEXITCODE)." }
 
-$Exe = Join-Path $BuildDir 'kImgEdit.exe'
+$Exe = Join-Path $ReleaseDir 'kImgEdit.exe'
 Write-Host ""
 Write-Host "[done] -> $Exe" -ForegroundColor Green
 
 if ($Run) {
     Write-Host "[run]" -ForegroundColor Green
-    & $Exe
+    Push-Location $ReleaseDir
+    try { & $Exe } finally { Pop-Location }
 }

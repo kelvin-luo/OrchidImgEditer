@@ -4,23 +4,42 @@
 
 基于c++,qt,cmake,的工具程序，可以打开一个图像，并显示在界面窗口上。支持按照鼠标为中心的视图缩放；
 要提供以下功能，画直线，画矩形，画圆，画箭头，铅笔画，马赛克，ocr提取文字，添加文字，图像裁剪，撤销；所画图元可以选择粗细、颜色；
- 
+
+给出编译指令，运行指令。
+输出开发文档到独立的markdown文件中。
 
 对界按钮图标、程序图标进行适当美化；
 
 可用的工具如下：
-opencv根目录是：D:\win10\opencv4130\build
+opencv5.0目录：D:\win10\opencv500\build
 默认的输入图片为：D:\media\xi_an_hot\w700d1q75.jpg
 qt6目录是：D:\Qt6
-halcon根目录是："C:\Users\kelvin\AppData\Local\Programs\MVTec\HALCON-24.11-Progress-Steady\bin\x64-win64"
-cmake目录是：D:\win10\cmake-4.2.1-windows-x86_64\bin\cmake.exe
+halcon根目录是："C:\Users\kelvin\AppData\Local\Programs\MVTec\HALCON-24.11-Progress-Steady"
+halcon根目录也可能是："D:\binWin10_D\halcon-24.11-progress-steady"
+cmake目录是：D:\win10\cmake-4.3.2-windows-x86_64\bin\cmake.exe
 ninja可执行文件：D:\win10\ninja.exe
-输出目录是：.\output
+ 
 
 
-本机安装的有vs2022，基于msvc2022。
-给出编译指令，运行指令。
-输出开发文档到独立的markdown文件中。
+项目目录结构如下：
+源码目录为：code,即set CODE_DIR=code
+程序根目录为：D:\k8\260515kelvin\p206_kImgEdit（CMake 工程在 %CODE_DIR% 子目录）
+即 set PROJECT_DIR=D:\k8\260515kelvin\p206_kImgEdit
+源码目录为：%PROJECT_DIR%\%CODE_DIR%
+项目依赖的第三方的源码的目录为：%PROJECT_DIR%\%CODE_DIR%\thirdparty（涉及源码下载的不要下载git完整仓库，只下载新版的tag即可，以便节省体积）
+项目依赖的第三方的sdk开发包的目录为：%PROJECT_DIR%\deps_sdk
+脚本目录：%PROJECT_DIR%\%CODE_DIR%\scripts
+文档目录：%PROJECT_DIR%\%CODE_DIR%\docs
+文档媒体资源保存目录：%PROJECT_DIR%\%CODE_DIR%\docs\assets
+程序编译输出的中间文件的输出目录：%PROJECT_DIR%\build_msvc
+程序可执行文件和动态库输出目录：%PROJECT_DIR%\msvc_release
+程序运行的模型的目录：%PROJECT_DIR%\msvc_release\models
+程序运行的输入数据目录：%PROJECT_DIR%\msvc_release\input
+程序运行的输出数据目录：%PROJECT_DIR%\msvc_release\output
+程序安装目录为：%PROJECT_DIR%\install
+注意：以上目录只是目前规划目录相对结构，程序编译、运行时应以相对路径进行，而不是绝对路径;换句话说，如果将来根目录移动到其它位置，不影响项目的编译、程序的运行；
+ 
+
 
 fix:
 界面添加设置tesseract.exe的选项；
@@ -57,12 +76,22 @@ halcon根目录是："D:\Program Files\MVTec\HALCON-17.12-Progress"
 
 #### compile:
 
-```shell
+**PowerShell**（不需要事先开 vcvars，脚本自动处理）：
+
+```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-# 在 PowerShell 中（不需要事先开 vcvars，脚本自动处理）
 cd D:\k8\260515kelvin\p206_kImgEdit
 .\build.ps1            # 编译 Release
+.\build.ps1 -Clean     # 清理后重编
 .\run.ps1              # 运行（默认打开 D:\media\xi_an_hot\w700d1q75.jpg）
+```
 
+**CMD / “Developer Command Prompt”**（`.\build.ps1` 在 CMD 里不会执行，请用 `.bat`）：
+
+```bat
+cd /d D:\k8\260515kelvin\p206_kImgEdit
+build.bat              REM 编译 Release
+build.bat -Clean       REM 清理后重编
+run.bat                REM 运行
 ```
