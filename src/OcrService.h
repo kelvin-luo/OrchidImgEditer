@@ -4,13 +4,7 @@
 #include <QString>
 #include <QImage>
 
-// Lightweight wrapper for OCR.
-//
-// Implementation strategy:
-//   1. If "tesseract" is on PATH (or env KIMG_TESSERACT points to a binary),
-//      use QProcess to run it on a temporary PNG and parse the text output.
-//   2. Otherwise, return an informative error string that explains how to
-//      enable OCR locally.
+// Lightweight wrapper for OCR (calls tesseract.exe via QProcess).
 class OcrService : public QObject {
     Q_OBJECT
 public:
@@ -22,23 +16,30 @@ public:
         QString error;
     };
 
+    // Default relative path under msvc_release: tesseract/tesseract.exe
+    static QString defaultTesseractRelPath();
+
     // Synchronous (runs tesseract); returns recognized text.
     // 'langs' example: "chi_sim+eng" or "eng".
     Result recognize(const QImage& img, const QString& langs = QStringLiteral("chi_sim+eng"));
 
-    // Resolve order: QSettings -> env KIMG_TESSERACT -> bundled (next to exe)
-    //              -> PATH lookup -> common install locations.
+    // Stored in QSettings as a path relative to applicationDirPath().
+    static QString storedTesseractPath();
+
+    // Absolute path used to launch tesseract.exe.
+    static QString resolveTesseractPath(const QString& storedRel = QString());
+
+    // Resolve order: QSettings (relative) -> env KIMG_TESSERACT -> PATH -> presets.
     static QString findTesseract();
     static bool    tesseractAvailable() { return !findTesseract().isEmpty(); }
 
-    // Parent directory of tessdata/ when using the bundled layout (exe dir / tesseract).
     static QString bundledTessdataPrefix();
 
-    // Persistent override (saved in QSettings, group "ocr", key "tesseract").
-    // Pass an empty string to clear.
-    static QString userTesseractPath();
-    static void    setUserTesseractPath(const QString& abs);
+    // Save as relative path (empty resets to default).
+    static QString userTesseractPath() { return storedTesseractPath(); }
+    static void    setUserTesseractPath(const QString& absOrRel);
+    static void    resetTesseractPathToDefault();
 
-    // Return one of: "user-setting", "env", "bundled", "PATH", "preset", or empty.
+    // Return one of: "default", "user-setting", "env", "PATH", "preset", or empty.
     static QString tesseractSource();
 };

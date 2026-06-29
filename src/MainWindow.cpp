@@ -248,7 +248,7 @@ void MainWindow::buildActions() {
 
     // Settings actions
     m_actSetTess   = new QAction(icon(QStringLiteral("settings")), tr("Tesseract Path..."), this);
-    m_actClearTess = new QAction(tr("Clear Tesseract Override"), this);
+    m_actClearTess = new QAction(tr("Reset Tesseract to Default"), this);
     m_actTessInfo  = new QAction(tr("Tesseract Status..."), this);
     connect(m_actSetTess,   &QAction::triggered, this, &MainWindow::onSetTesseractPath);
     connect(m_actClearTess, &QAction::triggered, this, &MainWindow::onClearTesseractPath);
@@ -522,16 +522,17 @@ void MainWindow::onStatusMsg(const QString& m) {
 }
 
 void MainWindow::onSetTesseractPath() {
-    // Suggest the currently resolved path (if any) as starting location
-    QString current = OcrService::userTesseractPath();
-    if (current.isEmpty()) current = OcrService::findTesseract();
+    QString currentRel = OcrService::storedTesseractPath();
+    QString currentAbs = OcrService::resolveTesseractPath(currentRel);
 
     QString startDir;
-    if (!current.isEmpty()) {
-        startDir = QFileInfo(current).absolutePath();
+    if (!currentAbs.isEmpty() && QFileInfo::exists(currentAbs)) {
+        startDir = QFileInfo(currentAbs).absolutePath();
     } else {
 #ifdef Q_OS_WIN
-        startDir = QStringLiteral("C:/Program Files/Tesseract-OCR");
+        startDir = QStringLiteral("D:/Program Files/Tesseract-OCR");
+        if (!QDir(startDir).exists())
+            startDir = QStringLiteral("C:/Program Files/Tesseract-OCR");
         if (!QDir(startDir).exists()) startDir = QStringLiteral("C:/");
 #endif
     }
@@ -552,7 +553,6 @@ void MainWindow::onSetTesseractPath() {
         return;
     }
 
-    // Probe by running "<exe> --version"
     QProcess proc;
     proc.start(path, { QStringLiteral("--version") });
     proc.waitForFinished(4000);
@@ -570,36 +570,44 @@ void MainWindow::onSetTesseractPath() {
     }
 
     OcrService::setUserTesseractPath(path);
+    const QString savedRel = OcrService::storedTesseractPath();
     statusBar()->showMessage(
-        tr("Tesseract set: %1").arg(path), 5000);
+        tr("Tesseract set: %1").arg(savedRel), 5000);
 
     QString ver = verOut.section(QChar('\n'), 0, 0).trimmed();
     QMessageBox::information(this, tr("Tesseract configured"),
-        tr("<b>Saved.</b><br><br>Path: <code>%1</code><br>Version: %2")
-            .arg(path)
+        tr("<b>Saved (relative).</b><br><br>"
+           "Stored: <code>%1</code><br>"
+           "Resolved: <code>%2</code><br>"
+           "Version: %3")
+            .arg(savedRel)
+            .arg(OcrService::resolveTesseractPath(savedRel))
             .arg(ver.isEmpty() ? tr("(unknown)") : ver));
 }
 
 void MainWindow::onClearTesseractPath() {
-    QString cur = OcrService::userTesseractPath();
-    if (cur.isEmpty()) {
+    const QString cur = OcrService::storedTesseractPath();
+    const QString def = OcrService::defaultTesseractRelPath();
+    if (cur == def) {
         QMessageBox::information(this, tr("Tesseract"),
-            tr("No user override is set."));
+            tr("Already using the default path:\n%1").arg(def));
         return;
     }
-    auto ret = QMessageBox::question(this, tr("Clear override?"),
-        tr("Remove the saved Tesseract path?\n\nCurrent: %1").arg(cur),
+    auto ret = QMessageBox::question(this, tr("Reset to default?"),
+        tr("Reset Tesseract path to default?\n\n"
+           "Current: %1\n"
+           "Default: %2").arg(cur, def),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (ret == QMessageBox::Yes) {
-        OcrService::setUserTesseractPath(QString());
-        statusBar()->showMessage(tr("Tesseract override cleared"), 4000);
+        OcrService::resetTesseractPathToDefault();
+        statusBar()->showMessage(tr("Tesseract reset to: %1").arg(def), 4000);
     }
 }
 
 void MainWindow::onShowTesseractStatus() {
+    const QString stored   = OcrService::storedTesseractPath();
     const QString resolved = OcrService::findTesseract();
     const QString source   = OcrService::tesseractSource();
-    const QString user     = OcrService::userTesseractPath();
 
     QString version = tr("(not probed)");
     if (!resolved.isEmpty()) {
@@ -622,15 +630,13 @@ void MainWindow::onShowTesseractStatus() {
         html += QStringLiteral("<p><b style='color:#4a8'>%1</b></p>")
                     .arg(tr("Available."));
         html += QStringLiteral("<p>%1 <code>%2</code></p>")
-                    .arg(tr("Path:")).arg(resolved);
+                    .arg(tr("Stored (relative):")).arg(stored);
+        html += QStringLiteral("<p>%1 <code>%2</code></p>")
+                    .arg(tr("Resolved:")).arg(resolved);
         html += QStringLiteral("<p>%1 %2</p>")
                     .arg(tr("Source:")).arg(source);
         html += QStringLiteral("<p>%1 %2</p>")
                     .arg(tr("Version:")).arg(version);
-    }
-    if (!user.isEmpty()) {
-        html += QStringLiteral("<hr><p>%1 <code>%2</code></p>")
-                    .arg(tr("User override:")).arg(user);
     }
     QMessageBox box(this);
     box.setWindowTitle(tr("Tesseract Status"));
