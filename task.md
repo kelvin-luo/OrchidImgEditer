@@ -98,7 +98,7 @@ PS D:\k8\260515kelvin\p206_kImgEdit\code\scripts>
 
 
 默认情况下tesseract的路径就设置为msvc_release下的tesseract\tesseract.exe，取相对路径，保存加载都是相对路径；
-
+还是不对啊。默认情况下的tesseract的路径设置为app所在目录下的tesseract\tesseract.exe，不要使用绝对路径保存读取，也就是程序整体移动后可以直接运行，不用再重新设置路径；
 
 
 ```

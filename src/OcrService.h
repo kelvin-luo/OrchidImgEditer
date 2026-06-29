@@ -23,13 +23,13 @@ public:
     // 'langs' example: "chi_sim+eng" or "eng".
     Result recognize(const QImage& img, const QString& langs = QStringLiteral("chi_sim+eng"));
 
-    // Stored in QSettings as a path relative to applicationDirPath().
+    // Stored in QSettings as path relative to applicationDirPath() only.
     static QString storedTesseractPath();
 
-    // Absolute path used to launch tesseract.exe.
+    // Resolve stored relative path against current applicationDirPath().
     static QString resolveTesseractPath(const QString& storedRel = QString());
 
-    // Resolve order: QSettings (relative) -> env KIMG_TESSERACT -> PATH -> presets.
+    // Uses stored relative path only (no system PATH / preset fallback).
     static QString findTesseract();
     static bool    tesseractAvailable() { return !findTesseract().isEmpty(); }
 
@@ -40,6 +40,6 @@ public:
     static void    setUserTesseractPath(const QString& absOrRel);
     static void    resetTesseractPathToDefault();
 
-    // Return one of: "default", "user-setting", "env", "PATH", "preset", or empty.
+    // Return "default" or "user-setting", or empty if not found.
     static QString tesseractSource();
 };

@@ -4,10 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
-#include <QStandardPaths>
-#include <QStringList>
 #include <QCoreApplication>
-#include <QByteArray>
 #include <QSettings>
 #include <QProcessEnvironment>
 
@@ -18,61 +15,107 @@ QString OcrService::defaultTesseractRelPath() {
 }
 
 static QString appBaseDir() {
-    return QCoreApplication::applicationDirPath();
+    return QDir::cleanPath(QCoreApplication::applicationDirPath());
+}
+
+static bool isBundledTesseractAbs(const QString& absPath) {
+    const QFileInfo fi(QDir::cleanPath(absPath));
+    return fi.fileName().compare(QStringLiteral("tesseract.exe"), Qt::CaseInsensitive) == 0
+        && fi.dir().dirName().compare(QStringLiteral("tesseract"), Qt::CaseInsensitive) == 0;
+}
+
+static QString normalizeStoredRel(const QString& rel) {
+    QString r = QDir::fromNativeSeparators(rel.trimmed());
+    while (r.startsWith(QLatin1String("./")))
+        r = r.mid(2);
+    return r;
 }
 
 static QString toStoredPath(const QString& absOrRel) {
-    if (absOrRel.isEmpty())
-        return OcrService::defaultTesseractRelPath();
+    const QString def = OcrService::defaultTesseractRelPath();
+    if (absOrRel.isEmpty() || normalizeStoredRel(absOrRel) == def)
+        return def;
 
     const QDir base(appBaseDir());
-    QFileInfo fi(absOrRel);
-    const QString abs = fi.isAbsolute()
-        ? QDir::cleanPath(fi.absoluteFilePath())
-        : QDir::cleanPath(base.absoluteFilePath(absOrRel));
+    const QFileInfo in(absOrRel);
 
-    QString rel = base.relativeFilePath(abs);
-    if (rel.startsWith(QLatin1String("..")))
-        return rel;  // outside app dir: still store as relative
-    return QDir::fromNativeSeparators(rel);
+    QString abs = in.isAbsolute()
+        ? QDir::cleanPath(in.absoluteFilePath())
+        : QDir::cleanPath(base.absoluteFilePath(normalizeStoredRel(absOrRel)));
+
+    if (isBundledTesseractAbs(abs))
+        return def;
+
+    const QString baseAbs = base.absolutePath();
+    if (abs.startsWith(baseAbs, Qt::CaseInsensitive)) {
+        return normalizeStoredRel(base.relativeFilePath(abs));
+    }
+
+    // Outside app dir: keep as relative (may break if whole app is moved).
+    return normalizeStoredRel(base.relativeFilePath(abs));
+}
+
+QString OcrService::resolveTesseractPath(const QString& storedRel) {
+    const QString rel = normalizeStoredRel(
+        storedRel.isEmpty() ? defaultTesseractRelPath() : storedRel);
+    return QDir(appBaseDir()).absoluteFilePath(rel);
+}
+
+static void saveStoredPath(const QString& rel) {
+    QSettings s;
+    s.setValue(QStringLiteral("ocr/tesseract"), normalizeStoredRel(rel));
+    s.sync();
 }
 
 QString OcrService::storedTesseractPath() {
     QSettings s;
     const QString key = QStringLiteral("ocr/tesseract");
+    const QString def = defaultTesseractRelPath();
+
     if (!s.contains(key)) {
-        s.setValue(key, defaultTesseractRelPath());
-        s.sync();
-        return defaultTesseractRelPath();
+        saveStoredPath(def);
+        return def;
     }
 
-    QString stored = s.value(key).toString();
+    QString stored = normalizeStoredRel(s.value(key).toString());
     if (stored.isEmpty())
-        stored = defaultTesseractRelPath();
+        stored = def;
 
-    // Migrate legacy absolute paths to relative.
+    bool changed = false;
+
+    // Legacy: absolute path in settings -> normalize to app-relative.
     if (QFileInfo(stored).isAbsolute()) {
-        stored = toStoredPath(stored);
-        s.setValue(key, stored);
-        s.sync();
+        stored = isBundledTesseractAbs(stored) ? def : toStoredPath(stored);
+        changed = true;
     }
+
+    // Legacy: stored path pointed at old install location (contains ..).
+    if (stored.contains(QLatin1String(".."))) {
+        if (QFileInfo::exists(resolveTesseractPath(def))) {
+            stored = def;
+            changed = true;
+        }
+    }
+
+    // Resolved path missing (e.g. app folder moved) -> fall back to bundled default.
+    if (!QFileInfo::exists(resolveTesseractPath(stored))
+        && QFileInfo::exists(resolveTesseractPath(def))) {
+        stored = def;
+        changed = true;
+    }
+
+    if (changed)
+        saveStoredPath(stored);
+
     return stored;
 }
 
-QString OcrService::resolveTesseractPath(const QString& storedRel) {
-    QString rel = storedRel.isEmpty() ? storedTesseractPath() : storedRel;
-    rel = QDir::fromNativeSeparators(rel);
-    return QDir::toNativeSeparators(QDir(appBaseDir()).absoluteFilePath(rel));
-}
-
 void OcrService::setUserTesseractPath(const QString& absOrRel) {
-    QSettings s;
-    s.setValue(QStringLiteral("ocr/tesseract"), toStoredPath(absOrRel));
-    s.sync();
+    saveStoredPath(toStoredPath(absOrRel));
 }
 
 void OcrService::resetTesseractPathToDefault() {
-    setUserTesseractPath(defaultTesseractRelPath());
+    saveStoredPath(defaultTesseractRelPath());
 }
 
 static QString tessdataPrefixForExe(const QString& exePath);
@@ -117,60 +160,19 @@ static QString tessdataPrefixForExe(const QString& exePath) {
 }
 
 QString OcrService::findTesseract() {
-    // 1. Saved setting (relative -> absolute)
-    const QString stored = storedTesseractPath();
-    const QString fromSettings = resolveTesseractPath(stored);
-    if (QFileInfo::exists(fromSettings))
-        return fromSettings;
-
-    // 2. Environment override
-    const QByteArray env = qgetenv("KIMG_TESSERACT");
-    if (!env.isEmpty()) {
-        QString p = QString::fromLocal8Bit(env);
-        if (QFileInfo::exists(p)) return p;
-    }
-
-    // 3. PATH lookup
-    QString hit = QStandardPaths::findExecutable(QStringLiteral("tesseract"));
-    if (!hit.isEmpty()) return hit;
-
-    // 4. Common install locations on Windows
-    static const QStringList candidates = {
-        QStringLiteral("C:/Program Files/Tesseract-OCR/tesseract.exe"),
-        QStringLiteral("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
-        QStringLiteral("D:/Program Files/Tesseract-OCR/tesseract.exe"),
-    };
-    for (const QString& c : candidates) {
-        if (QFileInfo::exists(c)) return c;
-    }
+    const QString resolved = resolveTesseractPath(storedTesseractPath());
+    if (QFileInfo::exists(resolved))
+        return QDir::toNativeSeparators(resolved);
     return {};
 }
 
 QString OcrService::tesseractSource() {
     const QString stored = storedTesseractPath();
-    const QString resolved = resolveTesseractPath(stored);
-    if (QFileInfo::exists(resolved)) {
-        if (stored == defaultTesseractRelPath())
-            return QStringLiteral("default");
-        return QStringLiteral("user-setting");
-    }
-
-    const QByteArray env = qgetenv("KIMG_TESSERACT");
-    if (!env.isEmpty() && QFileInfo::exists(QString::fromLocal8Bit(env)))
-        return QStringLiteral("env");
-
-    if (!QStandardPaths::findExecutable(QStringLiteral("tesseract")).isEmpty())
-        return QStringLiteral("PATH");
-
-    static const QStringList candidates = {
-        QStringLiteral("C:/Program Files/Tesseract-OCR/tesseract.exe"),
-        QStringLiteral("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
-        QStringLiteral("D:/Program Files/Tesseract-OCR/tesseract.exe"),
-    };
-    for (const QString& c : candidates) {
-        if (QFileInfo::exists(c)) return QStringLiteral("preset");
-    }
-    return {};
+    if (!QFileInfo::exists(resolveTesseractPath(stored)))
+        return {};
+    return stored == defaultTesseractRelPath()
+        ? QStringLiteral("default")
+        : QStringLiteral("user-setting");
 }
 
 OcrService::Result OcrService::recognize(const QImage& img, const QString& langs) {
@@ -180,17 +182,16 @@ OcrService::Result OcrService::recognize(const QImage& img, const QString& langs
         return r;
     }
 
+    const QString stored = storedTesseractPath();
     const QString exe = findTesseract();
     if (exe.isEmpty()) {
         r.error = tr(
             "Tesseract OCR engine not found.\n\n"
-            "Default path (relative): %1\n"
-            "Resolved: %2\n\n"
-            "To enable OCR:\n"
-            "  - Run: code/scripts/setup_tesseract.bat\n"
-            "  - Menu \"Settings -> Tesseract Path...\" to choose tesseract.exe\n"
-            "  - Or set environment variable KIMG_TESSERACT\n"
-        ).arg(defaultTesseractRelPath(), resolveTesseractPath());
+            "Stored (relative to app): %1\n"
+            "App directory: %2\n"
+            "Expected: %3\n\n"
+            "Run code/scripts/setup_tesseract.bat to deploy tesseract/ beside kImgEdit.exe."
+        ).arg(stored, appBaseDir(), resolveTesseractPath(stored));
         return r;
     }
 

@@ -630,7 +630,9 @@ void MainWindow::onShowTesseractStatus() {
         html += QStringLiteral("<p><b style='color:#4a8'>%1</b></p>")
                     .arg(tr("Available."));
         html += QStringLiteral("<p>%1 <code>%2</code></p>")
-                    .arg(tr("Stored (relative):")).arg(stored);
+                    .arg(tr("Stored (relative to app):")).arg(stored);
+        html += QStringLiteral("<p>%1 <code>%2</code></p>")
+                    .arg(tr("App directory:")).arg(QCoreApplication::applicationDirPath());
         html += QStringLiteral("<p>%1 <code>%2</code></p>")
                     .arg(tr("Resolved:")).arg(resolved);
         html += QStringLiteral("<p>%1 %2</p>")
