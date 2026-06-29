@@ -4,10 +4,7 @@
 
 .DESCRIPTION
     Default source: D:\Program Files\Tesseract-OCR
-    Layout:
-      deps_sdk/tesseract/             - portable engine + tessdata
-      msvc_release/tesseract/         - runtime copy
-      msvc_release/models/tessdata/   - eng + chi_sim (project models dir)
+    Copies tesseract.exe, all DLLs, and the complete tessdata folder.
 
 .EXAMPLE
     code\scripts\setup_tesseract.bat
@@ -29,8 +26,6 @@ $ReleaseDir  = Join-Path $ProjectDir 'msvc_release'
 $ReleaseTess = Join-Path $ReleaseDir 'tesseract'
 $ModelsDir   = Join-Path $ReleaseDir 'models\tessdata'
 
-$LangFiles = @('eng.traineddata', 'chi_sim.traineddata', 'osd.traineddata')
-
 function Ensure-Dir([string]$Path) {
     New-Item -ItemType Directory -Force -Path $Path | Out-Null
 }
@@ -48,21 +43,10 @@ function Copy-EngineBundle([string]$SrcRoot, [string]$DstRoot) {
     Copy-Item -Path (Join-Path $SrcRoot '*.dll') -Destination $DstRoot -ErrorAction SilentlyContinue
 
     $srcTessdata = Join-Path $SrcRoot 'tessdata'
-    $dstTessdata = Join-Path $DstRoot 'tessdata'
-    Ensure-Dir $dstTessdata
-
-    foreach ($lang in $LangFiles) {
-        $src = Join-Path $srcTessdata $lang
-        if (-not (Test-Path $src)) {
-            throw "Missing language data: $src"
-        }
-        Copy-Item -Path $src -Destination $dstTessdata
+    if (-not (Test-Path $srcTessdata)) {
+        throw "tessdata folder not found under: $SrcRoot"
     }
-
-    $configs = Join-Path $srcTessdata 'configs'
-    if (Test-Path $configs) {
-        Copy-Item -Path $configs -Destination $dstTessdata -Recurse
-    }
+    Copy-Item -Path $srcTessdata -Destination $DstRoot -Recurse -Force
 }
 
 $src = $SourceDir.TrimEnd('\')
@@ -77,15 +61,13 @@ if (-not $SkipDeploy) {
 
     Write-Host "[deploy] models -> $ModelsDir" -ForegroundColor Green
     if (Test-Path $ModelsDir) { Remove-Item -Recurse -Force $ModelsDir }
-    Ensure-Dir $ModelsDir
-    foreach ($lang in $LangFiles) {
-        Copy-Item -Path (Join-Path $DepsTess "tessdata\$lang") -Destination $ModelsDir
-    }
+    Copy-Item -Path (Join-Path $DepsTess 'tessdata') -Destination $ModelsDir -Recurse -Force
 }
 
+$langCount = (Get-ChildItem (Join-Path $DepsTess 'tessdata\*.traineddata') -ErrorAction SilentlyContinue).Count
 Write-Host ""
 Write-Host "[done] Tesseract bundled:" -ForegroundColor Green
 Write-Host "  deps   : $DepsTess\tesseract.exe"
 Write-Host "  runtime: $ReleaseTess\tesseract.exe"
 Write-Host "  models : $ModelsDir"
-Write-Host "  langs  : $($LangFiles -join ', ')"
+Write-Host "  langs  : $langCount traineddata file(s)"

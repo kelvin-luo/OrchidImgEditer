@@ -73,6 +73,9 @@ Failed loading language 'eng'
 Tesseract couldn't load any languages!
 Could not initialize tesseract.
 
+需要设置到自行安装的tesseract即“D:\Program Files\Tesseract-OCR”就能识别到中文数字英文等，但是目前嵌入的Tesseract就识别不到任何东西，排查一下；
+
+
 ```
 
 以下无效：

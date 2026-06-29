@@ -46,19 +46,16 @@ QString OcrService::bundledTessdataPrefix() {
     return tessdataPrefixForExe(exe);
 }
 
-static QString tessdataPrefixForExe(const QString& exePath) {
+static QString tessdataDirForExe(const QString& exePath) {
     const QFileInfo fi(exePath);
     const QDir binDir = fi.absoluteDir();
 
-    // Windows Tesseract 5.x: TESSDATA_PREFIX must be the tessdata directory itself
-    // (not its parent) when running OCR with -l; see --list-langs vs recognize behavior.
     const QDir tessdataDir(binDir.filePath(QStringLiteral("tessdata")));
     if (tessdataDir.exists(QStringLiteral("eng.traineddata"))
         || tessdataDir.exists(QStringLiteral("chi_sim.traineddata"))) {
         return QDir::toNativeSeparators(tessdataDir.absolutePath());
     }
 
-    // Project layout: msvc_release/models/tessdata
     const QDir modelsTessdata(
         QCoreApplication::applicationDirPath() + QStringLiteral("/models/tessdata"));
     if (modelsTessdata.exists(QStringLiteral("eng.traineddata"))
@@ -66,17 +63,19 @@ static QString tessdataPrefixForExe(const QString& exePath) {
         return QDir::toNativeSeparators(modelsTessdata.absolutePath());
     }
 
-    // Linux packages: <prefix>/share/tessdata
     const QDir shareTessdata(binDir.filePath(QStringLiteral("share/tessdata")));
     if (shareTessdata.exists(QStringLiteral("eng.traineddata"))) {
         return QDir::toNativeSeparators(shareTessdata.absolutePath());
     }
 
-    // Fallback: parent of exe (legacy installs); may still work for --list-langs.
-    if (tessdataDir.exists())
-        return QDir::toNativeSeparators(binDir.absolutePath());
+    return {};
+}
 
-    return QDir::toNativeSeparators(binDir.absolutePath());
+static QString tessdataPrefixForExe(const QString& exePath) {
+    const QString dir = tessdataDirForExe(exePath);
+    if (!dir.isEmpty())
+        return dir;
+    return QDir::toNativeSeparators(QFileInfo(exePath).absolutePath());
 }
 
 QString OcrService::findTesseract() {
@@ -172,12 +171,22 @@ OcrService::Result OcrService::recognize(const QImage& img, const QString& langs
 
     auto runTesseract = [&](const QStringList& args, int timeoutMs) -> QPair<int, QString> {
         QProcess proc;
+        const QFileInfo exeInfo(exe);
+        const QString tessDir = tessdataDirForExe(exe);
+
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        const QString prefix = tessdataPrefixForExe(exe);
-        if (!prefix.isEmpty())
-            env.insert(QStringLiteral("TESSDATA_PREFIX"), prefix);
+        env.remove(QStringLiteral("TESSDATA_PREFIX"));
+        if (!tessDir.isEmpty())
+            env.insert(QStringLiteral("TESSDATA_PREFIX"), tessDir);
         proc.setProcessEnvironment(env);
-        proc.start(exe, args);
+        proc.setWorkingDirectory(exeInfo.absolutePath());
+
+        QStringList cmd = args;
+        if (!tessDir.isEmpty()) {
+            cmd << QStringLiteral("--tessdata-dir") << tessDir;
+        }
+
+        proc.start(exe, cmd);
         if (!proc.waitForStarted(3000))
             return { -1, tr("Failed to start: %1").arg(exe) };
         if (!proc.waitForFinished(timeoutMs)) {
