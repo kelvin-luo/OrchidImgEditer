@@ -121,33 +121,39 @@ halcon根目录是："D:\Program Files\MVTec\HALCON-17.12-Progress"
 
 #### compile:
 
-**PowerShell**（不需要事先开 vcvars，脚本在 `code\scripts` 下）：
-
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-cd D:\k8\260515kelvin\p206_kImgEdit\code\scripts
-.\build.ps1            # 编译 Release
-.\build.ps1 -Clean     # 清理后重编
-.\run.ps1              # 运行
-```
-
-**CMD / “Developer Command Prompt”**（`.\build.ps1` 在 CMD 里不会执行，请用 `.bat`）：
+进入脚本目录（PowerShell / CMD 均可）：
 
 ```bat
 cd /d D:\k8\260515kelvin\p206_kImgEdit\code\scripts
+```
+
+**推荐：用 `.bat` 编译运行**（不受 PowerShell 执行策略限制，PS 和 CMD 都能用）：
+
+```bat
 build.bat              REM 编译 Release
 build.bat -Clean       REM 清理后重编
 run.bat                REM 运行
+setup_tesseract.bat    REM 打包 OCR（首次）
 ```
 
-**OCR（首次或更新语言包后）**：
+**若坚持用 `.ps1`**，需先放宽当前用户策略（只需一次）：
 
-```bat
-cd /d D:\k8\260515kelvin\p206_kImgEdit\code\scripts
-setup_tesseract.bat
-REM 默认从 D:\Program Files\Tesseract-OCR 复制到 msvc_release\tesseract
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\build.ps1
+.\build.ps1 -Clean
+.\run.ps1
 ```
+
+或单次绕过策略（不改系统设置）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+**说明**：不要直接双击 `.ps1`；CMD 中也不能运行 `.\build.ps1`，请用 `build.bat`。
 
 D:\k8\mdedia_img\深圳市宝安区南昌公园_20260620181419_216_70.jpg
 
