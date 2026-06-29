@@ -11,13 +11,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$CodeDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$CodeDir    = Split-Path -Parent $ScriptDir
 $ProjectDir = Split-Path -Parent $CodeDir
 $ReleaseDir = Join-Path $ProjectDir 'msvc_release'
 $Exe        = Join-Path $ReleaseDir 'kImgEdit.exe'
 
 if (-not (Test-Path $Exe)) {
-    throw "Executable not found: $Exe`nRun .\build.ps1 first (from project root or code/)."
+    throw "Executable not found: $Exe`nRun scripts\build.ps1 first."
 }
 
 $args = @()

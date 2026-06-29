@@ -148,7 +148,7 @@ OcrService::Result OcrService::recognize(const QImage& img, const QString& langs
         r.error = tr(
             "Tesseract OCR engine not found.\n\n"
             "To enable OCR:\n"
-            "  - Run: code\\scripts\\setup_tesseract.ps1  (downloads engine + models)\n"
+            "  - Run: code/scripts/setup_tesseract.bat\n"
             "  - Menu \"Settings -> Tesseract Path...\" to point at tesseract.exe, or\n"
             "  - Install Tesseract (https://github.com/UB-Mannheim/tesseract/wiki),\n"
             "    add it to PATH, or set environment variable KIMG_TESSERACT.\n"

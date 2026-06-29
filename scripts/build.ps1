@@ -21,7 +21,8 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'  # native stderr (CMake warnings) must NOT abort
-$CodeDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$CodeDir    = Split-Path -Parent $ScriptDir
 $ProjectDir = Split-Path -Parent $CodeDir
 
 function _Die($msg) {
@@ -33,8 +34,6 @@ function _Die($msg) {
 $CMakeExe = 'D:\win10\cmake-4.3.2-windows-x86_64\bin\cmake.exe'
 $NinjaExe = 'D:\win10\ninja.exe'
 $QtDir    = 'D:\Qt6\6.9.1\msvc2022_64'
-$OpenCV   = 'D:\win10\opencv500\build'
-
 $OpenCV   = 'D:\win10\opencv500\build'
 if (-not (Test-Path (Join-Path $OpenCV 'OpenCVConfig.cmake'))) {
     $fallback = 'D:\win10\opencv4130\build'
@@ -139,7 +138,7 @@ if (Test-Path $TessExe) {
         Copy-Item -Path (Join-Path $srcTessdata '*.traineddata') -Destination $ModelsTessdata -Force -ErrorAction SilentlyContinue
     }
 } else {
-    Write-Host "[hint] OCR not bundled. Run: code\scripts\setup_tesseract.bat" -ForegroundColor DarkYellow
+    Write-Host "[hint] OCR not bundled. Run: scripts\setup_tesseract.bat" -ForegroundColor DarkYellow
 }
 
 if ($Run) {

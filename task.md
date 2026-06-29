@@ -75,6 +75,26 @@ Could not initialize tesseract.
 
 需要设置到自行安装的tesseract即“D:\Program Files\Tesseract-OCR”就能识别到中文数字英文等，但是目前嵌入的Tesseract就识别不到任何东西，排查一下；
 
+将脚本们放到code下；
+
+PS C:\Users\kelvin> cd D:\k8\260515kelvin\p206_kImgEdit\code\scripts
+PS D:\k8\260515kelvin\p206_kImgEdit\code\scripts> .\build.ps1            # 编译 Release
+.\build.ps1 : 无法加载文件 D:\k8\260515kelvin\p206_kImgEdit\code\scripts\build.ps1，因为在此系统上禁止运行脚本。有关详
+细信息，请参阅 https:/go.microsoft.com/fwlink/?LinkID=135170 中的 about_Execution_Policies。
+所在位置 行:1 字符: 1
++ .\build.ps1            # 编译 Release
++ ~~~~~~~~~~~
+    + CategoryInfo          : SecurityError: (:) []，PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS D:\k8\260515kelvin\p206_kImgEdit\code\scripts> .\build.ps1 -Clean     # 清理后重编
+.\build.ps1 : 无法加载文件 D:\k8\260515kelvin\p206_kImgEdit\code\scripts\build.ps1，因为在此系统上禁止运行脚本。有关详
+细信息，请参阅 https:/go.microsoft.com/fwlink/?LinkID=135170 中的 about_Execution_Policies。
+所在位置 行:1 字符: 1
++ .\build.ps1 -Clean     # 清理后重编
++ ~~~~~~~~~~~
+    + CategoryInfo          : SecurityError: (:) []，PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS D:\k8\260515kelvin\p206_kImgEdit\code\scripts>
 
 ```
 
@@ -101,21 +121,21 @@ halcon根目录是："D:\Program Files\MVTec\HALCON-17.12-Progress"
 
 #### compile:
 
-**PowerShell**（不需要事先开 vcvars，脚本自动处理）：
+**PowerShell**（不需要事先开 vcvars，脚本在 `code\scripts` 下）：
 
 ```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-cd D:\k8\260515kelvin\p206_kImgEdit
+cd D:\k8\260515kelvin\p206_kImgEdit\code\scripts
 .\build.ps1            # 编译 Release
 .\build.ps1 -Clean     # 清理后重编
-.\run.ps1              # 运行（默认打开 D:\media\xi_an_hot\w700d1q75.jpg）
+.\run.ps1              # 运行
 ```
 
 **CMD / “Developer Command Prompt”**（`.\build.ps1` 在 CMD 里不会执行，请用 `.bat`）：
 
 ```bat
-cd /d D:\k8\260515kelvin\p206_kImgEdit
+cd /d D:\k8\260515kelvin\p206_kImgEdit\code\scripts
 build.bat              REM 编译 Release
 build.bat -Clean       REM 清理后重编
 run.bat                REM 运行
@@ -124,7 +144,8 @@ run.bat                REM 运行
 **OCR（首次或更新语言包后）**：
 
 ```bat
-code\scripts\setup_tesseract.bat
+cd /d D:\k8\260515kelvin\p206_kImgEdit\code\scripts
+setup_tesseract.bat
 REM 默认从 D:\Program Files\Tesseract-OCR 复制到 msvc_release\tesseract
 ```
 
