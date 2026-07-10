@@ -41,13 +41,11 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 
 
-## Donate
+## Donate & 联系
 
-![Donate](./README.assets/Donate.png)
+![Donate](./README.assets/Donate-contact-me.png)
 
 
 
-## 联系
-
-![contact-me](./README.assets/contact-me.png)
+##  
 
