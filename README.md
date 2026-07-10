@@ -15,16 +15,39 @@
 - 可选择画笔粗细与颜色
 - 美化的 SVG 工具图标 + 暗色主题
 
+## 截图
+
+![捕获](./README.assets/%E6%8D%95%E8%8E%B7.PNG)
+
+![捕获2](./README.assets/%E6%8D%95%E8%8E%B72.PNG)
+
 ## 快速开始
 
 ```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-
 # 在 PowerShell 中（不需要事先开 vcvars，脚本自动处理）
-cd D:\k8\260515kelvin\p206_kImgEdit
 .\build.ps1            # 编译 Release
 .\run.ps1              # 运行（默认打开 D:\media\xi_an_hot\w700d1q75.jpg）
 ```
 
 更多构建选项 / 命令行 / OCR 部署，请见 `docs/DEVELOPMENT.md`。
+
+
+
+## 关注
+
+如果本项目能给您带来帮助，请给一个小星星:star:，感谢！
+
+
+
+## Donate
+
+![Donate](./README.assets/Donate.png)
+
+
+
+## 联系
+
+![contact-me](./README.assets/contact-me.png)
+
